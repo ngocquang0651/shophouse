@@ -19,6 +19,7 @@ import {
   useEditComposer,
   useLocalRuntime,
   useThreadListItem,
+  useThreadListItemRuntime,
   useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
 import {
@@ -365,6 +366,7 @@ function ChatSidebar({ className, onClose }: { className: string; onClose: () =>
 
 function ThreadListItem({ onSelect }: { onSelect: () => void }) {
   const thread = useThreadListItem();
+  const threadRuntime = useThreadListItemRuntime();
   const pinned = thread.custom?.pinned === true;
 
   return (
@@ -386,7 +388,7 @@ function ThreadListItem({ onSelect }: { onSelect: () => void }) {
         }`}
         type="button"
         onClick={() => {
-          thread.updateCustom({
+          threadRuntime.updateCustom({
             ...(thread.custom ?? {}),
             pinned: !pinned
           });

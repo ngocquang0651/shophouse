@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type PropsWithChildren, useMemo, useState } from "react";
+import { type PropsWithChildren, type ReactNode, useMemo, useState } from "react";
 import {
   ActionBarPrimitive,
   AssistantRuntimeProvider,
@@ -423,7 +423,7 @@ function AssistantMessage() {
         <div className="min-w-0 overflow-hidden break-words border border-white/10 bg-[#111114] px-4 py-3 text-sm leading-6 text-neutral-100">
           <MessagePrimitive.Parts
             components={{
-              Text: () => <MessagePartPrimitive.Text component="p" className="whitespace-pre-wrap" />
+              Text: MarkdownMessagePart
             }}
           />
         </div>
@@ -444,11 +444,242 @@ function UserMessageBody() {
     <div className="min-w-0 overflow-hidden break-words bg-white px-4 py-3 text-sm leading-6 text-[#09090b] shadow-lg">
       <MessagePrimitive.Parts
         components={{
-          Text: () => <MessagePartPrimitive.Text component="p" className="whitespace-pre-wrap" />
+          Text: MarkdownMessagePart
         }}
       />
     </div>
   );
+}
+
+function MarkdownMessagePart() {
+  return <MessagePartPrimitive.Text component={MarkdownText} />;
+}
+
+function MarkdownText({ children }: { children?: ReactNode }) {
+  const text = flattenText(children);
+  const blocks = parseMarkdownBlocks(text);
+
+  return (
+    <div className="space-y-3">
+      {blocks.map((block, index) => {
+        if (block.type === "heading") {
+          const HeadingTag = `h${block.level}` as "h1" | "h2" | "h3";
+
+          return (
+            <HeadingTag className="font-semibold leading-snug text-inherit" key={index}>
+              {renderInlineMarkdown(block.text)}
+            </HeadingTag>
+          );
+        }
+
+        if (block.type === "paragraph") {
+          return (
+            <p className="whitespace-pre-wrap" key={index}>
+              {renderInlineMarkdown(block.text)}
+            </p>
+          );
+        }
+
+        if (block.type === "unordered-list") {
+          return (
+            <ul className="list-disc space-y-1 pl-5" key={index}>
+              {block.items.map((item, itemIndex) => (
+                <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
+              ))}
+            </ul>
+          );
+        }
+
+        if (block.type === "ordered-list") {
+          return (
+            <ol className="list-decimal space-y-1 pl-5" key={index}>
+              {block.items.map((item, itemIndex) => (
+                <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
+              ))}
+            </ol>
+          );
+        }
+
+        return (
+          <pre
+            className="overflow-x-auto border border-white/10 bg-black/25 p-3 text-xs leading-5 text-neutral-100"
+            key={index}
+          >
+            <code>{block.text}</code>
+          </pre>
+        );
+      })}
+    </div>
+  );
+}
+
+type MarkdownBlock =
+  | { type: "heading"; level: 1 | 2 | 3; text: string }
+  | { type: "paragraph"; text: string }
+  | { type: "unordered-list"; items: string[] }
+  | { type: "ordered-list"; items: string[] }
+  | { type: "code"; text: string };
+
+function flattenText(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") {
+    return "";
+  }
+
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(flattenText).join("");
+  }
+
+  return "";
+}
+
+function parseMarkdownBlocks(text: string): MarkdownBlock[] {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const blocks: MarkdownBlock[] = [];
+  let paragraph: string[] = [];
+  let listItems: string[] = [];
+  let orderedListItems: string[] = [];
+  let codeLines: string[] = [];
+  let inCodeBlock = false;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) {
+      return;
+    }
+
+    blocks.push({ type: "paragraph", text: paragraph.join("\n") });
+    paragraph = [];
+  };
+
+  const flushList = () => {
+    if (listItems.length) {
+      blocks.push({ type: "unordered-list", items: listItems });
+      listItems = [];
+    }
+
+    if (orderedListItems.length) {
+      blocks.push({ type: "ordered-list", items: orderedListItems });
+      orderedListItems = [];
+    }
+  };
+
+  for (const line of lines) {
+    if (line.trim().startsWith("```")) {
+      if (inCodeBlock) {
+        blocks.push({ type: "code", text: codeLines.join("\n") });
+        codeLines = [];
+        inCodeBlock = false;
+      } else {
+        flushParagraph();
+        flushList();
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeLines.push(line);
+      continue;
+    }
+
+    if (!line.trim()) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      blocks.push({
+        type: "heading",
+        level: headingMatch[1].length as 1 | 2 | 3,
+        text: headingMatch[2]
+      });
+      continue;
+    }
+
+    const unorderedMatch = line.match(/^\s*[-*]\s+(.+)$/);
+    if (unorderedMatch) {
+      flushParagraph();
+      orderedListItems = [];
+      listItems.push(unorderedMatch[1]);
+      continue;
+    }
+
+    const orderedMatch = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (orderedMatch) {
+      flushParagraph();
+      listItems = [];
+      orderedListItems.push(orderedMatch[1]);
+      continue;
+    }
+
+    flushList();
+    paragraph.push(line);
+  }
+
+  if (inCodeBlock && codeLines.length) {
+    blocks.push({ type: "code", text: codeLines.join("\n") });
+  }
+
+  flushParagraph();
+  flushList();
+
+  return blocks.length ? blocks : [{ type: "paragraph", text }];
+}
+
+function renderInlineMarkdown(text: string) {
+  const nodes: ReactNode[] = [];
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text))) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+    if (token.startsWith("`")) {
+      nodes.push(
+        <code className="border border-current/15 bg-current/10 px-1 py-0.5 text-[0.92em]" key={nodes.length}>
+          {token.slice(1, -1)}
+        </code>
+      );
+    } else if (token.startsWith("**")) {
+      nodes.push(<strong key={nodes.length}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("*")) {
+      nodes.push(<em key={nodes.length}>{token.slice(1, -1)}</em>);
+    } else {
+      const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (linkMatch) {
+        nodes.push(
+          <a
+            className="underline underline-offset-4 transition hover:text-[#d8b56d]"
+            href={linkMatch[2]}
+            key={nodes.length}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {linkMatch[1]}
+          </a>
+        );
+      }
+    }
+
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+
+  return nodes;
 }
 
 function EditMessageComposer() {

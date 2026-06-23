@@ -5,6 +5,7 @@ export type ChatThreadStatus = "regular" | "archived";
 export type ChatThread = {
   id: string;
   title: string;
+  pinned: boolean;
   status: ChatThreadStatus;
   createdAt: string;
   updatedAt: string;
@@ -18,6 +19,12 @@ export type ChatThreadListResponse = {
 export type ChatHistoryRepository = ExportedMessageRepository;
 
 export type ChatHistoryItem = ExportedMessageRepositoryItem;
+
+export type ChatThreadDetail = {
+  thread: ChatThread;
+  messages: ChatHistoryItem[];
+  headId?: string | null;
+};
 
 export type ChatStreamChunk =
   | {
@@ -34,4 +41,9 @@ export type ChatStreamRequest = {
   messages: readonly ThreadMessage[];
   parentId?: string | null;
   assistantMessageId?: string;
+};
+
+export type CreateChatThreadInput = {
+  threadId: string;
+  title?: string;
 };

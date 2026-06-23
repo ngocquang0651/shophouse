@@ -1,8 +1,11 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Res } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import type { Response } from "express";
 import { ChatService } from "./chat.service";
+import type { ChatThreadMessage } from "./chat.types";
 import { AppendMessageDto } from "./dto/append-message.dto";
 import { CreateThreadDto } from "./dto/create-thread.dto";
+import { RenameThreadDto } from "./dto/rename-thread.dto";
 import { StreamRunDto } from "./dto/stream-run.dto";
 import { UpdateThreadDto } from "./dto/update-thread.dto";
 
@@ -19,12 +22,27 @@ export class ChatController {
 
   @Post("threads")
   createThread(@Body() dto: CreateThreadDto) {
-    return this.chatService.createThread(dto.title);
+    return this.chatService.createThread({ threadId: dto.threadId, title: dto.title });
   }
 
   @Get("threads/:threadId")
   getThread(@Param("threadId") threadId: string) {
-    return this.chatService.getThread(threadId);
+    return this.chatService.getThreadDetail(threadId);
+  }
+
+  @Patch("threads/:threadId/name")
+  renameThread(@Param("threadId") threadId: string, @Body() dto: RenameThreadDto) {
+    return this.chatService.renameThread(threadId, dto.title);
+  }
+
+  @Post("threads/:threadId/pin")
+  pinThread(@Param("threadId") threadId: string) {
+    return this.chatService.pinThread(threadId);
+  }
+
+  @Post("threads/:threadId/unpin")
+  unpinThread(@Param("threadId") threadId: string) {
+    return this.chatService.unpinThread(threadId);
   }
 
   @Patch("threads/:threadId")
@@ -48,8 +66,8 @@ export class ChatController {
     return this.chatService.appendMessage(threadId, dto as never);
   }
 
-  @Post("threads/:threadId/runs/stream")
-  async streamRun(@Param("threadId") threadId: string, @Body() dto: StreamRunDto, @Res() response: Response) {
+  @Post("threads/:threadId/messages/stream")
+  async streamMessage(@Param("threadId") threadId: string, @Body() dto: StreamRunDto, @Res() response: Response) {
     this.chatService.ensureThread(threadId);
     const answer = this.chatService.buildMockReply(dto.messages);
     const chunks = answer.match(/.{1,16}(\s|$)|\S+/g) ?? [answer];
@@ -69,6 +87,38 @@ export class ChatController {
     }
 
     response.write(`${JSON.stringify({ type: "done", threadId, assistantMessageId: dto.assistantMessageId })}\n`);
+    this.persistStreamHistory(threadId, dto, answer);
     response.end();
+  }
+
+  @Post("threads/:threadId/runs/stream")
+  async streamRun(@Param("threadId") threadId: string, @Body() dto: StreamRunDto, @Res() response: Response) {
+    return this.streamMessage(threadId, dto, response);
+  }
+
+  private persistStreamHistory(threadId: string, dto: StreamRunDto, answer: string) {
+    const userMessage = this.getLastUserMessage(dto.messages);
+    const assistantMessageId = dto.assistantMessageId ?? randomUUID();
+
+    if (userMessage) {
+      this.chatService.appendMessage(threadId, {
+        parentId: userMessage.id === dto.parentId ? null : (dto.parentId ?? null),
+        message: userMessage
+      });
+    }
+
+    this.chatService.appendMessage(threadId, {
+      parentId: userMessage?.id ?? dto.parentId ?? null,
+      message: {
+        id: assistantMessageId,
+        role: "assistant",
+        content: [{ type: "text", text: answer }],
+        createdAt: new Date().toISOString()
+      }
+    });
+  }
+
+  private getLastUserMessage(messages: unknown[]) {
+    return [...(messages as ChatThreadMessage[])].reverse().find((message) => message.role === "user");
   }
 }

@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, getApiUrl } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, apiUpload } from "@/lib/api";
 import type { Product } from "@/types/product";
 
 type ApiProduct = Omit<Product, "id"> & {
@@ -20,12 +20,7 @@ export async function getProducts() {
 }
 
 export async function getPublicProducts() {
-  const response = await fetch(getApiUrl("/products"), { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error("Unable to load products.");
-  }
-
-  const products = (await response.json()) as ApiProduct[];
+  const products = await apiGet<ApiProduct[]>("/products", { auth: false });
   return products.map(normalizeProduct);
 }
 

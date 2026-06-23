@@ -7,7 +7,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { brands } from "@/data/brands";
 import { categories } from "@/data/categories";
 import { products as fallbackProducts } from "@/data/products";
-import type { Product } from "@/types/product";
+import { getPublicProducts } from "@/lib/product-store";
 
 const contentSections = [
   {
@@ -28,26 +28,9 @@ const contentSections = [
   },
 ];
 
-type ApiProduct = Omit<Product, "id"> & {
-  _id?: string;
-  id?: string;
-};
-
 async function getHomeProducts() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
   try {
-    const response = await fetch(`${apiUrl}/products`, { cache: "no-store" });
-    if (!response.ok) {
-      return fallbackProducts;
-    }
-
-    const products = (await response.json()) as ApiProduct[];
-    return products.map((product) => ({
-      ...product,
-      id: product.id ?? product._id ?? "",
-      images: product.images?.length ? product.images : [product.image].filter(Boolean)
-    }));
+    return await getPublicProducts();
   } catch {
     return fallbackProducts;
   }

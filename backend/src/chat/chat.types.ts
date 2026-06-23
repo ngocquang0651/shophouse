@@ -3,9 +3,11 @@ export type ChatThreadStatus = "regular" | "archived";
 export type ChatThread = {
   id: string;
   title: string;
+  pinned: boolean;
   status: ChatThreadStatus;
   createdAt: string;
   updatedAt: string;
+  custom?: Record<string, unknown>;
 };
 
 export type ChatMessagePart = {
@@ -33,4 +35,10 @@ export type ChatHistoryItem = {
 export type ChatHistoryRepository = {
   headId?: string | null;
   messages: ChatHistoryItem[];
+};
+
+export type ChatThreadDetail = {
+  thread: ChatThread;
+  messages: ChatHistoryItem[];
+  headId?: string | null;
 };

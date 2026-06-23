@@ -2,10 +2,6 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import type { ChatHistoryItem, ChatHistoryRepository, ChatThread, ChatThreadMessage, ChatThreadStatus } from "./chat.types";
 
-type ThreadRecord = ChatThread & {
-  custom?: Record<string, unknown>;
-};
-
 const fallbackPrompts = [
   "Mình có thể giúp bạn lọc sản phẩm theo brand, category, ngân sách hoặc dịp sử dụng.",
   "Nếu bạn muốn mua nhanh, hãy bắt đầu từ category, sau đó chốt theo brand và khoảng giá.",
@@ -14,15 +10,22 @@ const fallbackPrompts = [
 
 @Injectable()
 export class ChatService {
-  private readonly threads = new Map<string, ThreadRecord>();
+  private readonly threads = new Map<string, ChatThread>();
   private readonly histories = new Map<string, ChatHistoryRepository>();
 
   listThreads() {
     const threads = Array.from(this.threads.values())
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .sort((a, b) => {
+        if (a.pinned !== b.pinned) {
+          return a.pinned ? -1 : 1;
+        }
+
+        return b.updatedAt.localeCompare(a.updatedAt);
+      })
       .map((thread) => ({
         id: thread.id,
         title: thread.title,
+        pinned: thread.pinned,
         status: thread.status,
         createdAt: thread.createdAt,
         updatedAt: thread.updatedAt,
@@ -32,11 +35,19 @@ export class ChatService {
     return { threads };
   }
 
-  createThread(title = "New conversation") {
+  createThread(data: { threadId?: string; title?: string } = {}) {
+    if (data.threadId) {
+      const existing = this.threads.get(data.threadId);
+      if (existing) {
+        return existing;
+      }
+    }
+
     const now = new Date().toISOString();
-    const thread: ThreadRecord = {
-      id: randomUUID(),
-      title,
+    const thread: ChatThread = {
+      id: data.threadId ?? randomUUID(),
+      title: data.title ?? "New conversation",
+      pinned: false,
       status: "regular",
       createdAt: now,
       updatedAt: now
@@ -55,9 +66,10 @@ export class ChatService {
     }
 
     const now = new Date().toISOString();
-    const thread: ThreadRecord = {
+    const thread: ChatThread = {
       id: threadId,
       title: "New conversation",
+      pinned: false,
       status: "regular",
       createdAt: now,
       updatedAt: now
@@ -67,6 +79,17 @@ export class ChatService {
     this.histories.set(thread.id, { messages: [] });
 
     return thread;
+  }
+
+  getThreadDetail(threadId: string) {
+    const thread = this.getThread(threadId);
+    const history = this.getHistory(threadId);
+
+    return {
+      thread,
+      messages: history.messages,
+      headId: history.headId
+    };
   }
 
   getThread(threadId: string) {
@@ -86,11 +109,32 @@ export class ChatService {
       title: data.title ?? thread.title,
       status: data.status ?? thread.status,
       custom: data.custom ?? thread.custom,
+      pinned: typeof data.custom?.pinned === "boolean" ? data.custom.pinned : thread.pinned,
       updatedAt: new Date().toISOString()
     };
 
     this.threads.set(threadId, updated);
     return updated;
+  }
+
+  renameThread(threadId: string, title: string) {
+    const thread = this.getThread(threadId);
+    const updated = {
+      ...thread,
+      title,
+      updatedAt: new Date().toISOString()
+    };
+
+    this.threads.set(threadId, updated);
+    return updated;
+  }
+
+  pinThread(threadId: string) {
+    return this.setThreadPinned(threadId, true);
+  }
+
+  unpinThread(threadId: string) {
+    return this.setThreadPinned(threadId, false);
   }
 
   deleteThread(threadId: string) {
@@ -215,5 +259,21 @@ export class ChatService {
     }
 
     return text.length > 42 ? `${text.slice(0, 39)}...` : text;
+  }
+
+  private setThreadPinned(threadId: string, pinned: boolean) {
+    const thread = this.getThread(threadId);
+    const updated = {
+      ...thread,
+      pinned,
+      custom: {
+        ...(thread.custom ?? {}),
+        pinned
+      },
+      updatedAt: new Date().toISOString()
+    };
+
+    this.threads.set(threadId, updated);
+    return updated;
   }
 }

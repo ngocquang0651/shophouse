@@ -1,8 +1,9 @@
+import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from "axios";
 import { clearAccessToken, getAccessToken } from "@/lib/token";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-type ApiOptions = {
+export type ApiOptions = {
   auth?: boolean;
 };
 
@@ -16,103 +17,119 @@ export class ApiError extends Error {
   }
 }
 
+type ApiErrorBody = {
+  message?: string | string[];
+};
+
 export function getApiUrl(path: string) {
   return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-async function request<T>(method: string, path: string, body?: unknown, options: ApiOptions = {}) {
-  const headers = new Headers();
-  headers.set("Content-Type", "application/json");
+export const apiClient = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json"
+  },
+  timeout: 30000
+});
 
-  if (options.auth !== false && typeof window !== "undefined") {
-    const token = getAccessToken();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-  }
-
-  const response = await fetch(getApiUrl(path), {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
-    if (response.status === 401 && typeof window !== "undefined") {
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError<ApiErrorBody>) => {
+    if (error.response?.status === 401 && typeof window !== "undefined") {
       clearAccessToken();
     }
 
-    let message = `Request failed with status ${response.status}.`;
-    try {
-      const errorBody = (await response.json()) as { message?: string | string[] };
-      if (Array.isArray(errorBody.message)) {
-        message = errorBody.message.join(" ");
-      } else if (errorBody.message) {
-        message = errorBody.message;
-      }
-    } catch {
-      // Keep the generic message when the API does not return JSON.
-    }
+    return Promise.reject(toApiError(error));
+  }
+);
 
-    throw new ApiError(response.status, message);
+export function toApiError(error: unknown) {
+  if (error instanceof ApiError) {
+    return error;
   }
 
-  if (response.status === 204) {
-    return undefined as T;
+  if (axios.isAxiosError<ApiErrorBody>(error)) {
+    const status = error.response?.status ?? 0;
+    const message = getApiErrorMessage(error);
+
+    return new ApiError(status, message);
   }
 
-  return (await response.json()) as T;
+  return new ApiError(0, error instanceof Error ? error.message : "Unexpected API error.");
 }
 
-export async function apiUpload<T>(path: string, formData: FormData, options: ApiOptions = {}) {
-  const headers = new Headers();
+function getApiErrorMessage(error: AxiosError<ApiErrorBody>) {
+  const responseMessage = error.response?.data?.message;
 
-  if (options.auth !== false && typeof window !== "undefined") {
-    const token = getAccessToken();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
+  if (Array.isArray(responseMessage)) {
+    return responseMessage.join(" ");
   }
 
-  const response = await fetch(getApiUrl(path), {
-    method: "POST",
-    headers,
-    body: formData,
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
-    let message = `Upload failed with status ${response.status}.`;
-    try {
-      const errorBody = (await response.json()) as { message?: string | string[] };
-      if (Array.isArray(errorBody.message)) {
-        message = errorBody.message.join(" ");
-      } else if (errorBody.message) {
-        message = errorBody.message;
-      }
-    } catch {
-      // Keep the generic message when the API does not return JSON.
-    }
-
-    throw new ApiError(response.status, message);
+  if (responseMessage) {
+    return responseMessage;
   }
 
-  return (await response.json()) as T;
+  if (error.response?.status) {
+    return `Request failed with status ${error.response.status}.`;
+  }
+
+  return error.message || "Network request failed.";
+}
+
+export async function apiRequest<T>(config: AxiosRequestConfig, options: ApiOptions = {}) {
+  const response = await apiClient.request<T, AxiosResponse<T>>(withApiAuth(config, options));
+  return response.data;
 }
 
 export function apiGet<T>(path: string, options?: ApiOptions) {
-  return request<T>("GET", path, undefined, options);
+  return apiRequest<T>({ method: "GET", url: path }, options);
 }
 
 export function apiPost<T>(path: string, body: unknown, options?: ApiOptions) {
-  return request<T>("POST", path, body, options);
+  return apiRequest<T>({ method: "POST", url: path, data: body }, options);
 }
 
 export function apiPatch<T>(path: string, body: unknown, options?: ApiOptions) {
-  return request<T>("PATCH", path, body, options);
+  return apiRequest<T>({ method: "PATCH", url: path, data: body }, options);
 }
 
 export function apiDelete<T>(path: string, options?: ApiOptions) {
-  return request<T>("DELETE", path, undefined, options);
+  return apiRequest<T>({ method: "DELETE", url: path }, options);
+}
+
+export async function apiUpload<T>(path: string, formData: FormData, options: ApiOptions = {}) {
+  const response = await apiClient.post<T>(
+    path,
+    formData,
+    withApiAuth(
+      {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      },
+      options
+    )
+  );
+
+  return response.data;
+}
+
+function withApiAuth(config: AxiosRequestConfig, options: ApiOptions = {}) {
+  if (options.auth === false || typeof window === "undefined") {
+    return config;
+  }
+
+  const token = getAccessToken();
+  if (!token) {
+    return config;
+  }
+
+  return {
+    ...config,
+    headers: {
+      ...config.headers,
+      Authorization: `Bearer ${token}`
+    }
+  } satisfies AxiosRequestConfig;
 }

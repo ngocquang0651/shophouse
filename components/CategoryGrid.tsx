@@ -7,22 +7,22 @@ type CategoryGridProps = {
 
 export function CategoryGrid({ categories }: CategoryGridProps) {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8" id="women">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <section className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8" id="categories">
+      <div className="mb-6 flex items-center justify-between gap-4 border-b border-neutral-200 pb-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-champagne">Categories</p>
-          <h2 className="mt-2 text-3xl font-semibold text-ink">Shop by edit</h2>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-juno">Danh mục</p>
+          <h2 className="mt-1 text-2xl font-black text-ink sm:text-3xl">Bạn muốn mua gì hôm nay?</h2>
         </div>
-        <p className="max-w-lg text-sm leading-6 text-neutral-600">
-          Quick paths into the pieces shoppers reach for first.
-        </p>
+        <a className="shrink-0 text-sm font-bold text-juno underline-offset-4 hover:underline" href="#products">
+          Xem tất cả
+        </a>
       </div>
 
-      <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-9">
-        {categories.map((category) => (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {categories.slice(0, 6).map((category) => (
           <a
-            className="group relative min-h-36 overflow-hidden bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-ink/20 sm:min-h-44 lg:col-span-1"
-            href="#products"
+            className="group relative min-h-48 overflow-hidden bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-juno/30"
+            href={`#${category.id}`}
             key={category.id}
           >
             <Image
@@ -30,10 +30,12 @@ export function CategoryGrid({ categories }: CategoryGridProps) {
               src={category.image}
               alt={category.name}
               fill
-              sizes="(min-width: 1024px) 11vw, (min-width: 640px) 33vw, 50vw"
+              sizes="(min-width: 1024px) 16vw, (min-width: 640px) 33vw, 50vw"
             />
-            <span className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-            <span className="absolute bottom-3 left-3 right-3 text-sm font-semibold text-white">{category.name}</span>
+            <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+            <span className="absolute inset-x-3 bottom-3 bg-white px-3 py-2 text-center text-sm font-black uppercase text-ink shadow-sm transition group-hover:bg-juno group-hover:text-white">
+              {category.name}
+            </span>
           </a>
         ))}
       </div>

@@ -42,7 +42,13 @@ export function deleteChatThread(threadId: string) {
 }
 
 export function getChatMessages(threadId: string) {
-  return getChatThreadDetail(threadId).then(({ headId, messages }) => ({ headId, messages }) satisfies ChatHistoryRepository);
+  return getChatThreadDetail(threadId).then(
+    ({ headId, messages }) =>
+      ({
+        headId,
+        messages: messages.map(normalizeHistoryItem)
+      }) satisfies ChatHistoryRepository
+  );
 }
 
 export function appendChatMessage(threadId: string, item: ChatHistoryItem) {
@@ -144,4 +150,60 @@ function getProgressResponseText(event: { event?: ProgressEvent }) {
   }
 
   return typeof target?.response === "string" ? target.response : "";
+}
+
+function normalizeHistoryItem(item: ChatHistoryItem): ChatHistoryItem {
+  const message = item.message;
+  const metadata = (typeof message.metadata === "object" && message.metadata !== null ? message.metadata : {}) as Record<string, unknown>;
+  const custom = getRecord(metadata.custom);
+
+  if (message.role === "assistant") {
+    return {
+      ...item,
+      parentId: item.parentId ?? null,
+      message: {
+        ...message,
+        status: message.status ?? { type: "complete", reason: "stop" },
+        metadata: {
+          unstable_state: metadata.unstable_state ?? null,
+          unstable_annotations: Array.isArray(metadata.unstable_annotations) ? metadata.unstable_annotations : [],
+          unstable_data: Array.isArray(metadata.unstable_data) ? metadata.unstable_data : [],
+          steps: Array.isArray(metadata.steps) ? metadata.steps : [],
+          ...metadata,
+          custom
+        }
+      }
+    } as ChatHistoryItem;
+  }
+
+  if (message.role === "user") {
+    return {
+      ...item,
+      parentId: item.parentId ?? null,
+      message: {
+        ...message,
+        attachments: Array.isArray(message.attachments) ? message.attachments : [],
+        metadata: {
+          ...metadata,
+          custom
+        }
+      }
+    } as ChatHistoryItem;
+  }
+
+  return {
+    ...item,
+    parentId: item.parentId ?? null,
+    message: {
+      ...message,
+      metadata: {
+        ...metadata,
+        custom
+      }
+    }
+  } as ChatHistoryItem;
+}
+
+function getRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }

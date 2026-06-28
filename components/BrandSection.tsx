@@ -6,22 +6,22 @@ type BrandSectionProps = {
 
 export function BrandSection({ brands }: BrandSectionProps) {
   return (
-    <section className="border-y border-neutral-200 bg-white" id="brands">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <section className="border-y border-neutral-200 bg-neutral-50" id="brands">
+      <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 flex items-center justify-between gap-4 border-b border-neutral-200 pb-3">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-champagne">Top Brands</p>
-            <h2 className="mt-2 text-3xl font-semibold text-ink">Names worth knowing</h2>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-juno">Thương hiệu</p>
+            <h2 className="mt-1 text-2xl font-black text-ink sm:text-3xl">Top brands</h2>
           </div>
-          <a className="text-sm font-semibold text-ink underline-offset-4 hover:underline" href="#products">
-            View product edit
+          <a className="shrink-0 text-sm font-bold text-juno underline-offset-4 hover:underline" href="#products">
+            Xem sản phẩm
           </a>
         </div>
 
-        <div className="mt-7 grid grid-cols-2 border-l border-t border-neutral-200 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 border-l border-t border-neutral-200 bg-white sm:grid-cols-3 lg:grid-cols-6">
           {brands.map((brand) => (
             <a
-              className="flex min-h-24 items-center justify-center border-b border-r border-neutral-200 px-4 text-center text-sm font-semibold uppercase tracking-[0.14em] text-neutral-800 transition hover:bg-porcelain hover:text-ink focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ink/15"
+              className="flex min-h-20 items-center justify-center border-b border-r border-neutral-200 px-4 text-center text-sm font-black uppercase tracking-[0.1em] text-neutral-800 transition hover:bg-juno hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-juno/30"
               href="#products"
               key={brand.id}
             >

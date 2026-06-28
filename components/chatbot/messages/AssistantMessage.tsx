@@ -3,6 +3,7 @@ import { Bot } from "lucide-react";
 import { chatbotLayout } from "@/components/chatbot/constants";
 import { MarkdownMessagePart } from "@/components/chatbot/markdown/MarkdownMessagePart";
 import { MessageActions } from "@/components/chatbot/messages/MessageActions";
+import { DemoToolPanel } from "@/components/chatbot/tools/DemoToolPanel";
 import { cn } from "@/lib/utils";
 
 export function AssistantMessage() {
@@ -23,6 +24,7 @@ export function AssistantMessage() {
               Text: MarkdownMessagePart
             }}
           />
+          <DemoToolPanel />
         </div>
         <MessageActions kind="assistant" />
       </div>

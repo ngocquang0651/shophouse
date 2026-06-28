@@ -11,8 +11,12 @@ const config: Config = {
       colors: {
         ink: "#151515",
         champagne: "#c9a96a",
+        rosewood: "#b23a48",
+        juno: "#e30613",
+        blush: "#fff4f4",
         porcelain: "#f7f4ef",
-        smoke: "#ece8df"
+        smoke: "#ece8df",
+        mist: "#f3f5f2"
       },
       boxShadow: {
         soft: "0 20px 60px rgba(21, 21, 21, 0.08)"

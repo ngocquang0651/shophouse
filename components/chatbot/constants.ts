@@ -19,6 +19,8 @@ export const chatbotLayout = {
 } as const;
 
 export const quickPrompts = [
+  "Demo tool calls",
+  "Demo markdown support",
   "Gợi ý túi luxury đang sale",
   "Tài khoản demo đăng nhập là gì?",
   "Có những brand nào?",

@@ -9,7 +9,7 @@ import {
   streamChatRun,
   unpinChatThread
 } from "@/lib/chatbot/api";
-import type { ChatThread } from "@/types/chatbot";
+import type { ChatThread, DemoToolCall } from "@/types/chatbot";
 
 type RemoteThreadListCallbacks = {
   setThreads(threads: ChatThread[]): void;
@@ -23,6 +23,7 @@ export function createChatModelAdapter(ensureThread: (threadId?: string | null) 
       const threadId = await ensureThread(unstable_threadId);
 
       let text = "";
+      let demoTools: DemoToolCall[] = [];
 
       for await (const chunk of streamChatRun(
         threadId,
@@ -33,17 +34,27 @@ export function createChatModelAdapter(ensureThread: (threadId?: string | null) 
         },
         abortSignal
       )) {
+        if (chunk.type === "tools") {
+          demoTools = chunk.tools;
+          yield {
+            content: [{ type: "text", text }],
+            metadata: { custom: { demoTools } }
+          };
+        }
+
         if (chunk.type === "chunk") {
           text += chunk.text;
           yield {
-            content: [{ type: "text", text }]
+            content: [{ type: "text", text }],
+            metadata: { custom: { demoTools } }
           };
         }
       }
 
       yield {
         content: [{ type: "text", text }],
-        status: { type: "complete", reason: "stop" }
+        status: { type: "complete", reason: "stop" },
+        metadata: { custom: { demoTools } }
       };
     }
   };

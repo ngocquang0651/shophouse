@@ -1,58 +1,65 @@
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, BadgePercent, RefreshCw, Truck } from "lucide-react";
+
+const serviceItems = [
+  { label: "Freeship từ 499K", icon: Truck },
+  { label: "Đổi trả 7 ngày", icon: RefreshCw },
+  { label: "Deal mới mỗi tuần", icon: BadgePercent }
+];
 
 export function Hero() {
   return (
-    <section className="bg-porcelain" id="luxury">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:py-12">
-        <div className="flex flex-col justify-center py-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-champagne">Luxury Collection</p>
-          <h1 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight text-ink sm:text-5xl lg:text-6xl">
-            Luxe Haven
-          </h1>
-          <p className="mt-5 max-w-xl text-base leading-7 text-neutral-700 sm:text-lg">
-            Shop an edit of polished bags, tailored silhouettes, fine accents, and elevated everyday icons.
-          </p>
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Link
-              className="inline-flex items-center justify-center bg-ink px-6 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-ink/20"
-              href="#products"
-            >
-              Shop New In
-            </Link>
-            <Link
-              className="inline-flex items-center justify-center border border-ink px-6 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-ink transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-ink/20"
-              href="#brands"
-            >
-              Top Brands
-            </Link>
+    <section className="bg-white" id="luxury">
+      <div className="relative min-h-[520px] overflow-hidden">
+        <Image
+          className="object-cover"
+          src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1800&q=85"
+          alt="Fashion campaign with bags, shoes and seasonal styling"
+          fill
+          priority
+          sizes="100vw"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/25 to-transparent" />
+        <div className="relative mx-auto flex min-h-[520px] max-w-[1440px] items-center px-4 py-10 sm:px-6 lg:px-8">
+          <div className="max-w-xl text-white">
+            <p className="inline-flex bg-juno px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]">Vừa cập bến</p>
+            <h1 className="mt-5 text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
+              Mua nhanh giày, túi và phụ kiện mỗi ngày
+            </h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-white/90">
+              Giao diện tập trung vào banner lớn, danh mục rõ, sản phẩm dày và giá nổi bật như trải nghiệm fashion ecommerce Việt Nam.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Link
+                className="inline-flex items-center justify-center gap-2 bg-juno px-6 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-white/40"
+                href="#new-arrivals"
+              >
+                Mua ngay
+                <ArrowRight className="size-4" />
+              </Link>
+              <Link
+                className="inline-flex items-center justify-center border border-white bg-white/10 px-6 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white backdrop-blur transition hover:bg-white hover:text-ink focus:outline-none focus:ring-2 focus:ring-white/40"
+                href="#sale"
+              >
+                Xem sale
+              </Link>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className="grid min-h-[360px] grid-cols-5 grid-rows-5 gap-3 sm:min-h-[460px]">
-          <div className="relative col-span-3 row-span-5">
-            <Image
-              className="object-cover"
-              src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&q=85"
-              alt="Model wearing a luxury fashion look"
-              fill
-              priority
-              sizes="(min-width: 1024px) 38vw, 60vw"
-            />
-          </div>
-          <div className="relative col-span-2 row-span-3">
-            <Image
-              className="object-cover"
-              src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=85"
-              alt="Luxury leather handbag"
-              fill
-              sizes="(min-width: 1024px) 25vw, 40vw"
-            />
-          </div>
-          <div className="col-span-2 row-span-2 flex flex-col justify-end bg-ink p-5 text-white">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-champagne">This week</span>
-            <span className="mt-2 text-2xl font-semibold">Up to 35% off selected icons</span>
-          </div>
+      <div className="border-b border-neutral-200 bg-white">
+        <div className="mx-auto grid max-w-[1440px] divide-y divide-neutral-200 px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
+          {serviceItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div className="flex items-center justify-center gap-3 py-4 text-sm font-bold text-neutral-800" key={item.label}>
+                <Icon className="size-5 text-juno" />
+                {item.label}
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

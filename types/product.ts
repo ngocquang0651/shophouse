@@ -11,6 +11,7 @@ export type Product = {
   badge: ProductBadge;
   image: string;
   images?: string[];
+  colors?: string[];
   description?: string;
   stock?: number;
   status?: ProductStatus;

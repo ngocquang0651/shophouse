@@ -69,13 +69,18 @@ export class ChatController {
   @Post("threads/:threadId/messages/stream")
   async streamMessage(@Param("threadId") threadId: string, @Body() dto: StreamRunDto, @Res() response: Response) {
     this.chatService.ensureThread(threadId);
-    const answer = this.chatService.buildMockReply(dto.messages);
+    const run = this.chatService.buildMockRun(dto.messages);
+    const answer = run.text;
     const chunks = answer.match(/.{1,16}(\s|$)|\S+/g) ?? [answer];
 
     response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
     response.setHeader("Cache-Control", "no-cache, no-transform");
     response.setHeader("Connection", "keep-alive");
     response.flushHeaders?.();
+
+    if (run.tools?.length) {
+      response.write(`${JSON.stringify({ type: "tools", tools: run.tools })}\n`);
+    }
 
     for (const chunk of chunks) {
       if (response.destroyed) {
@@ -87,7 +92,7 @@ export class ChatController {
     }
 
     response.write(`${JSON.stringify({ type: "done", threadId, assistantMessageId: dto.assistantMessageId })}\n`);
-    this.persistStreamHistory(threadId, dto, answer);
+    this.persistStreamHistory(threadId, dto, run);
     response.end();
   }
 
@@ -96,7 +101,7 @@ export class ChatController {
     return this.streamMessage(threadId, dto, response);
   }
 
-  private persistStreamHistory(threadId: string, dto: StreamRunDto, answer: string) {
+  private persistStreamHistory(threadId: string, dto: StreamRunDto, run: ReturnType<ChatService["buildMockRun"]>) {
     const userMessage = this.getLastUserMessage(dto.messages);
     const assistantMessageId = dto.assistantMessageId ?? randomUUID();
 
@@ -112,8 +117,13 @@ export class ChatController {
       message: {
         id: assistantMessageId,
         role: "assistant",
-        content: [{ type: "text", text: answer }],
-        createdAt: new Date().toISOString()
+        content: [{ type: "text", text: run.text }],
+        createdAt: new Date().toISOString(),
+        metadata: {
+          custom: {
+            demoTools: run.tools ?? []
+          }
+        }
       }
     });
   }

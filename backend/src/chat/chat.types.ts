@@ -37,6 +37,28 @@ export type ChatHistoryRepository = {
   messages: ChatHistoryItem[];
 };
 
+export type DemoToolStatus = "running" | "complete" | "error";
+
+export type DemoToolResult = {
+  title: string;
+  rows?: Record<string, string | number>[];
+  bullets?: string[];
+  note?: string;
+};
+
+export type DemoToolCall = {
+  id: string;
+  name: string;
+  description?: string;
+  status: DemoToolStatus;
+  result?: DemoToolResult;
+};
+
+export type ChatRunReply = {
+  text: string;
+  tools?: DemoToolCall[];
+};
+
 export type ChatThreadDetail = {
   thread: ChatThread;
   messages: ChatHistoryItem[];

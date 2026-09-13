@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; --background: #fff; --foreground: #151515; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea, select { font: inherit; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+::selection { background: #c94516; color: #fff; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+
+/* Keep catalogue and detail views compact so the product remains the focus. */
+main.max-w-\[1440px\] { max-width: 1320px; }
+main.max-w-\[1440px\].py-10 { padding-top: 2rem; padding-bottom: 2rem; }
+main.max-w-\[1440px\].py-6 { padding-top: 1.25rem; padding-bottom: 2.5rem; }
+main.max-w-\[1440px\] .aspect-\[4\/5\] { aspect-ratio: 5 / 6; }
+main.max-w-\[1440px\] .text-4xl { font-size: 1.875rem; line-height: 2.25rem; }
+main.max-w-\[1440px\] .sm\:text-5xl { font-size: 2.25rem; line-height: 2.5rem; }
+main.max-w-\[1440px\] .lg\:grid-cols-\[220px_1fr\] { grid-template-columns: 200px minmax(0, 1fr); }
+main.max-w-\[1440px\] .lg\:grid-cols-\[minmax\(0\,1\.15fr\)_minmax\(360px\,\.85fr\)\] { grid-template-columns: minmax(0, 1.08fr) minmax(320px, .72fr); }
+@media (min-width: 640px) {
+  main.max-w-\[1440px\] .sm\:text-4xl { font-size: 1.875rem; line-height: 2.25rem; }
+}

@@ -7,7 +7,7 @@ Project: LuxeStore Next.js ecommerce app with a local NestJS backend. Recent wor
 ## Current Runtime
 
 - Frontend dev server: `npm run dev`
-- Backend dev server: `cd backend && npm run start:dev`
+- Backend dev server: `cd be && npm run start:dev`
 - Backend URL: `http://localhost:4000`
 - Frontend usually: `http://localhost:3000`
 - If port `3000` is occupied, Next may use `http://localhost:3001`
@@ -88,7 +88,7 @@ Do not pass a custom `auth` key directly into axios config. Axios already uses `
 
 ## Backend Chat APIs
 
-Backend module: `backend/src/chat`.
+Backend module: `be/src/chat`.
 
 Implemented endpoints:
 
@@ -156,7 +156,7 @@ Known fix already applied:
 
 - Thread history previously crashed with `Cannot read properties of undefined`.
 - Root cause was backend history messages missing fields expected by assistant-ui.
-- Backend now normalizes messages in `backend/src/chat/chat.service.ts`.
+- Backend now normalizes messages in `be/src/chat/chat.service.ts`.
 - Frontend also normalizes history in `lib/chatbot/api.ts` before importing into assistant-ui.
 
 Required normalized fields include:
@@ -207,7 +207,7 @@ npm run build
 Backend:
 
 ```bash
-cd backend
+cd be
 npm run lint
 npx tsc --noEmit
 npm run build

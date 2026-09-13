@@ -241,6 +241,23 @@ The MVP is complete when:
 - Use accessible labels for forms and icon buttons.
 - Keep code readable and avoid unnecessary abstractions.
 
+## Code Agent Rules
+
+- Read the relevant files and existing implementation before making changes; do not rely on assumptions about the project structure.
+- Keep changes narrowly scoped to the requested task and preserve unrelated user or agent changes in the working tree.
+- Prefer the smallest maintainable patch that follows existing conventions; avoid broad rewrites, speculative abstractions, and unnecessary dependency changes.
+- Use `apply_patch` for manual source edits and preserve existing formatting, line endings, comments, and valid Unicode text.
+- Do not edit generated files, lockfiles, secrets, environment files, or vendor code unless the task explicitly requires it.
+- Validate all external input at system boundaries, use typed interfaces, and never expose credentials, tokens, or other sensitive values in source code or logs.
+- Every component must define an explicit interface for its props, with required properties marked as required; do not rely on implicit, untyped, or overly broad prop shapes.
+- Every new or materially changed component and feature must have a dedicated test file covering normal behavior, validation failures, error states, loading states, and relevant edge cases.
+- Tests must include boundary conditions such as empty, missing, nullish, malformed, minimum, maximum, duplicate, and unexpected inputs where applicable.
+- Follow TypeScript standards strictly: prefer precise types, avoid `any` and unsafe type assertions, handle nullish values explicitly, and ensure the project passes type-checking without suppressing errors.
+- For authentication and authorization changes, verify both successful and rejected paths, including unauthenticated and unauthorized requests.
+- For frontend changes, verify keyboard accessibility, loading/error/disabled states, responsive layouts, and that text does not overflow on small screens.
+- After implementation, inspect the diff for unrelated changes and run the narrowest relevant lint, type-check, test, or build command available.
+- Report what changed and what validation was run; explicitly note any checks that could not be completed.
+
 ## Backend Roadmap
 
 Build a basic NestJS backend with MongoDB when the project is ready to move beyond frontend mock data and localStorage.
@@ -270,7 +287,7 @@ Backend goals:
 Create the backend in a separate root folder:
 
 ```text
-backend/
+be/
   src/
     main.ts
     app.module.ts
@@ -382,7 +399,7 @@ GET /products?search=coach&category=Women's%20Bags&badge=Sale&status=active
 
 ### Milestone 1: Initialize Backend
 
-- Create `backend/`.
+- Create `be/`.
 - Initialize a NestJS project.
 - Install dependencies:
   - `@nestjs/config`
@@ -629,7 +646,7 @@ docker run -d --name luxestore-mongo -p 27017:27017 mongo:7
 Run backend:
 
 ```bash
-cd backend
+  cd be
 npm run start:dev
 ```
 

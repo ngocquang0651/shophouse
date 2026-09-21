@@ -23,6 +23,7 @@ import { ProductBadge } from "../common/enums/product-badge.enum";
 import { UserRole } from "../common/enums/user-role.enum";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
+import { clampLowStockThreshold, parseAdminListQuery } from "./product-query";
 import { ProductsService } from "./products.service";
 
 type UploadRequest = {
@@ -32,7 +33,7 @@ type UploadRequest = {
 
 const imageFileFilter = (_request: unknown, file: Express.Multer.File, callback: (error: Error | null, acceptFile: boolean) => void) => {
   if (!file.mimetype.startsWith("image/")) {
-    callback(new BadRequestException("Only image files are allowed."), false);
+    callback(new BadRequestException("Chỉ chấp nhận tệp hình ảnh."), false);
     return;
   }
 
@@ -62,6 +63,21 @@ export class ProductsController {
     @Query("tag") tag?: string
   ) {
     return this.productsService.findAll({ search: q ?? search, category, badge, audience, type, tag });
+  }
+
+  @Get("admin")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  findAllForAdmin(@Query() query: Record<string, string | string[] | undefined>) {
+    return this.productsService.findAllForAdmin(parseAdminListQuery(query));
+  }
+
+  @Get("admin/summary")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  getAdminSummary(@Query("lowStockThreshold") lowStockThreshold?: string) {
+    const parsed = Number(lowStockThreshold);
+    return this.productsService.getAdminSummary(clampLowStockThreshold(Number.isInteger(parsed) ? parsed : undefined));
   }
 
   @Get("slug/:slug")
@@ -95,7 +111,7 @@ export class ProductsController {
   )
   uploadImages(@UploadedFiles() files: Express.Multer.File[] = [], @Req() request: UploadRequest) {
     if (!files.length) {
-      throw new BadRequestException("Upload at least one image.");
+      throw new BadRequestException("Vui lòng chọn ít nhất một ảnh để tải lên.");
     }
 
     const host = request.get("host");

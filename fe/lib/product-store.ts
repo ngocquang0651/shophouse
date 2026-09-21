@@ -1,4 +1,6 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload } from "@/lib/api";
+import { PAGE_SIZE, type AdminFilters, type ProductSummary } from "@/lib/admin-products";
+import { buildCreatePayload, buildUpdatePayload, type ProductWriteValues } from "@/lib/product-payload";
 import type { CatalogFilters, Product, ProductTag, ProductVariant } from "@/types/product";
 
 type ApiProduct = Omit<Product, "id"> & {
@@ -77,8 +79,43 @@ export async function getCatalogProducts(filters: CatalogFilters = {}): Promise<
   return { items: products.map(normalizeProduct), total: Array.isArray(response) ? products.length : response.total ?? products.length };
 }
 
-export async function getProducts() {
-  return (await getCatalogProducts()).items;
+export type AdminProductPage = {
+  items: Product[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  summary: ProductSummary;
+  categories: string[];
+  brands: string[];
+};
+
+type ApiAdminProductPage = Omit<AdminProductPage, "items"> & { items: ApiProduct[] };
+
+/**
+ * Admin products keep their real variants. The storefront normaliser invents a
+ * "default" variant for products without any, which must not show up in the editor.
+ */
+export function normalizeAdminProduct(product: ApiProduct): Product {
+  const normalized = normalizeProduct(product);
+  return product.variants?.length ? normalized : { ...normalized, variants: [] };
+}
+
+/** Admin-only listing: every status, filtered, sorted and paginated by the server. */
+export async function getAdminProducts(filters: AdminFilters, lowStockThreshold: number): Promise<AdminProductPage> {
+  const params = new URLSearchParams({ page: String(filters.page), pageSize: String(PAGE_SIZE), sort: filters.sort, lowStockThreshold: String(lowStockThreshold) });
+  if (filters.query.trim()) params.set("q", filters.query.trim());
+  if (filters.category) params.set("category", filters.category);
+  if (filters.badge) params.set("badge", filters.badge);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.stock) params.set("stock", filters.stock);
+
+  const response = await apiGet<ApiAdminProductPage>(`/products/admin?${params.toString()}`);
+  return { ...response, items: response.items.map(normalizeAdminProduct) };
+}
+
+export async function getAdminSummary(lowStockThreshold: number) {
+  return apiGet<ProductSummary>(`/products/admin/summary?lowStockThreshold=${lowStockThreshold}`);
 }
 
 export async function getPublicProducts() {
@@ -90,17 +127,22 @@ export async function getProductBySlug(slug: string) {
   return normalizeProduct(product);
 }
 
-export async function createProduct(product: Omit<Product, "id" | "createdAt" | "updatedAt">) {
-  const nextProduct = await apiPost<ApiProduct>("/products", product);
-  return normalizeProduct(nextProduct);
+export async function createProduct(values: ProductWriteValues) {
+  const nextProduct = await apiPost<ApiProduct>("/products", buildCreatePayload(values));
+  return normalizeAdminProduct(nextProduct);
 }
 
-export async function updateProduct(product: Product) {
-  const { id, createdAt, updatedAt, ...payload } = product;
-  void createdAt;
-  void updatedAt;
-  const nextProduct = await apiPatch<ApiProduct>(`/products/${id}`, payload);
-  return normalizeProduct(nextProduct);
+export async function updateProduct(productId: string, values: ProductWriteValues) {
+  const nextProduct = await apiPatch<ApiProduct>(`/products/${productId}`, buildUpdatePayload(values));
+  return normalizeAdminProduct(nextProduct);
+}
+
+export type ProductQuickPatch = Partial<Pick<Product, "price" | "stock" | "status">>;
+
+/** Sends only the changed fields, for inline edits and bulk status changes. */
+export async function patchProduct(productId: string, patch: ProductQuickPatch) {
+  const nextProduct = await apiPatch<ApiProduct>(`/products/${productId}`, patch);
+  return normalizeAdminProduct(nextProduct);
 }
 
 export async function deleteProduct(productId: string) {

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "incremental": false,
+    "plugins": [],
+    "paths": {
+      "@/*": ["./*"],
+      "next/image": ["./test/stubs/next-image.tsx"]
+    }
+  }
+}

@@ -14,12 +14,12 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.usersService.findByEmail(dto.identifier);
     if (!user) {
-      throw new UnauthorizedException("Invalid identifier or password.");
+      throw new UnauthorizedException("Tài khoản hoặc mật khẩu không đúng.");
     }
 
     const passwordMatches = await bcrypt.compare(dto.password, user.password);
     if (!passwordMatches) {
-      throw new UnauthorizedException("Invalid identifier or password.");
+      throw new UnauthorizedException("Tài khoản hoặc mật khẩu không đúng.");
     }
 
     const responseUser = {

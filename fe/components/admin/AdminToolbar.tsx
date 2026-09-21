@@ -1,112 +1,142 @@
 "use client";
 
-import { ListFilter, Plus, Search, X } from "lucide-react";
-import type { ProductBadge, ProductStatus } from "@/types/product";
+import { useEffect, useRef } from "react";
+import { Plus, Search, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { apiBadgeOptions, badgeLabels, statusLabels, type ApiBadge } from "@/lib/admin-labels";
+import type { AdminFilters, SortKey, StockFilter } from "@/lib/admin-products";
+import type { ProductStatus } from "@/types/product";
 
-type AdminToolbarProps = {
-  query: string;
-  category: string;
-  badge: "" | ProductBadge;
-  status: "" | ProductStatus;
+export type AdminToolbarProps = {
+  filters: AdminFilters;
   categories: string[];
-  onQueryChange: (value: string) => void;
-  onCategoryChange: (value: string) => void;
-  onBadgeChange: (value: "" | ProductBadge) => void;
-  onStatusChange: (value: "" | ProductStatus) => void;
+  resultCount: number;
+  onChange: (patch: Partial<AdminFilters>) => void;
   onCreate: () => void;
   onClear: () => void;
-  resultCount: number;
 };
 
-const badges: ProductBadge[] = ["New", "Sale", "Luxury"];
-const statuses: ProductStatus[] = ["active", "inactive"];
+const sortOptions: { value: SortKey; label: string }[] = [
+  { value: "newest", label: "Mới nhất" },
+  { value: "name", label: "Tên A → Z" },
+  { value: "price-asc", label: "Giá thấp → cao" },
+  { value: "price-desc", label: "Giá cao → thấp" },
+  { value: "stock-asc", label: "Tồn kho ít nhất" },
+  { value: "stock-desc", label: "Tồn kho nhiều nhất" }
+];
 
-export function AdminToolbar({
-  query,
-  category,
-  badge,
-  status,
-  categories,
-  onQueryChange,
-  onCategoryChange,
-  onBadgeChange,
-  onStatusChange,
-  onCreate,
-  onClear,
-  resultCount
-}: AdminToolbarProps) {
-  const hasFilters = Boolean(query || category || badge || status);
+const badgeOptions = [{ value: "", label: "Tất cả nhãn" }, ...apiBadgeOptions.map((item) => ({ value: item, label: badgeLabels[item] }))];
+
+const statusOptions = [
+  { value: "", label: "Mọi trạng thái" },
+  ...(Object.keys(statusLabels) as ProductStatus[]).map((item) => ({ value: item, label: statusLabels[item] }))
+];
+
+const stockOptions = [
+  { value: "", label: "Mọi mức tồn kho" },
+  { value: "low", label: "Sắp hết hàng" },
+  { value: "out", label: "Hết hàng" }
+];
+
+export function AdminToolbar({ filters, categories, resultCount, onChange, onCreate, onClear }: AdminToolbarProps) {
+  const hasFilters = Boolean(filters.query || filters.category || filters.badge || filters.status || filters.stock);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // "/" jumps to the search box, as in most admin tools (ignored while typing elsewhere).
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const typing = target?.closest("input, textarea, select, [role='combobox'], [contenteditable='true']");
+
+      if (event.key === "/" && !typing && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const categoryOptions = [{ value: "", label: "Tất cả danh mục" }, ...categories.map((item) => ({ value: item, label: item }))];
+
   return (
-    <div className="border border-neutral-200 bg-white shadow-soft">
-      <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center">
+    <Card>
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
         <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-500" />
-          <input
-            className="h-11 w-full border border-neutral-300 bg-white pl-10 pr-4 text-sm outline-none transition hover:border-neutral-500 focus:border-ink focus:ring-2 focus:ring-ink/10"
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-600" aria-hidden="true" />
+          <Input
+            ref={searchRef}
+            className="pl-10 pr-10"
             type="search"
-            placeholder="Search by product, brand or ID"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            aria-label="Search products"
+            enterKeyHint="search"
+            autoComplete="off"
+            aria-keyshortcuts="/"
+            placeholder="Tìm theo tên, thương hiệu hoặc mã sản phẩm"
+            value={filters.query}
+            onChange={(event) => onChange({ query: event.target.value })}
+            aria-label="Tìm sản phẩm"
           />
+          <kbd
+            className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-control border border-input px-1.5 text-xs text-neutral-600 lg:block"
+            aria-hidden="true"
+          >
+            /
+          </kbd>
         </div>
-
-        <label className="flex h-11 items-center gap-2 border border-neutral-300 px-3 text-sm lg:w-48">
-          <ListFilter className="size-4 text-neutral-500" />
-          <select
-          className="h-11 border border-neutral-300 bg-white px-3 text-sm text-ink outline-none transition hover:border-neutral-500 focus:border-ink focus:ring-2 focus:ring-ink/10"
-          value={category}
-          onChange={(event) => onCategoryChange(event.target.value)}
-          aria-label="Filter by category"
-        >
-          <option value="">All categories</option>
-          {categories.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-          </select>
-        </label>
-
-        <select
-          className="h-11 border border-neutral-300 bg-white px-3 text-sm text-ink outline-none transition hover:border-neutral-500 focus:border-ink focus:ring-2 focus:ring-ink/10"
-          value={badge}
-          onChange={(event) => onBadgeChange(event.target.value as "" | ProductBadge)}
-          aria-label="Filter by badge"
-        >
-          <option value="">All badges</option>
-          {badges.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="h-11 border border-neutral-300 bg-white px-3 text-sm text-ink outline-none transition hover:border-neutral-500 focus:border-ink focus:ring-2 focus:ring-ink/10"
-          value={status}
-          onChange={(event) => onStatusChange(event.target.value as "" | ProductStatus)}
-          aria-label="Filter by status"
-        >
-          <option value="">All status</option>
-          {statuses.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-
-        {hasFilters ? <button className="inline-flex h-11 items-center justify-center gap-2 px-2 text-xs font-bold uppercase tracking-[0.12em] text-neutral-500 transition hover:text-ink" type="button" onClick={onClear}><X className="size-4" />Clear</button> : null}
-        <button
-          className="flex h-11 items-center justify-center gap-2 bg-ink px-4 text-sm font-semibold text-white transition hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-ink/20"
-          type="button"
-          onClick={onCreate}
-        >
-          <Plus className="size-4" />
-           Add product
-         </button>
+        <Button className="shrink-0" type="button" onClick={onCreate}>
+          <Plus aria-hidden="true" />
+          Thêm sản phẩm
+        </Button>
       </div>
-      <div className="flex items-center justify-between border-t border-neutral-100 bg-[#fcfbf9] px-4 py-2.5 text-xs text-neutral-500"><span>{resultCount.toLocaleString()} matching products</span><span className="hidden sm:inline">Tip: search by brand or SKU</span></div>
-    </div>
+
+      <div className="grid gap-3 border-t border-border px-4 py-3 sm:grid-cols-2 lg:grid-cols-5">
+        <Select
+          aria-label="Lọc theo danh mục"
+          value={filters.category}
+          options={categoryOptions}
+          onValueChange={(category) => onChange({ category })}
+        />
+        <Select
+          aria-label="Lọc theo nhãn"
+          value={filters.badge}
+          options={badgeOptions}
+          onValueChange={(badge) => onChange({ badge: badge as "" | ApiBadge })}
+        />
+        <Select
+          aria-label="Lọc theo trạng thái"
+          value={filters.status}
+          options={statusOptions}
+          onValueChange={(status) => onChange({ status: status as "" | ProductStatus })}
+        />
+        <Select
+          aria-label="Lọc theo tồn kho"
+          value={filters.stock}
+          options={stockOptions}
+          onValueChange={(stock) => onChange({ stock: stock as StockFilter })}
+        />
+        <Select
+          aria-label="Sắp xếp"
+          value={filters.sort}
+          options={sortOptions}
+          onValueChange={(sort) => onChange({ sort: sort as SortKey })}
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-border bg-paper px-4 py-2.5 text-sm text-neutral-600">
+        <span className="tabular-nums" role="status" aria-live="polite">
+          {resultCount.toLocaleString("vi-VN")} sản phẩm
+        </span>
+        {hasFilters ? (
+          <Button className="min-h-8 h-auto px-2 py-1 text-neutral-700" variant="ghost" size="sm" type="button" onClick={onClear}>
+            <X aria-hidden="true" />
+            Xoá bộ lọc
+          </Button>
+        ) : null}
+      </div>
+    </Card>
   );
 }

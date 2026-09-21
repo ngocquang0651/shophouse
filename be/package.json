@@ -8,7 +8,8 @@
     "start:dev": "nest start --watch",
     "lint": "eslint \"src/**/*.ts\"",
     "seed": "ts-node src/seed.ts",
-    "import:shopee": "ts-node src/import-shopee.ts"
+    "import:shopee": "ts-node src/import-shopee.ts",
+    "test": "node --require ts-node/register --test src/*/*.test.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

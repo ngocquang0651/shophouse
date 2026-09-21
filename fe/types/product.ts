@@ -21,6 +21,9 @@ export type ProductVariant = {
   stock: number;
   image?: string;
   price?: number;
+  sourceVariantId?: string;
+  sourceLabel?: string;
+  gtin?: string;
 };
 
 export type Product = {

@@ -1,16 +1,15 @@
+import type { Metadata } from "next";
+import { Suspense } from "react";
 import { AdminProductManager } from "@/components/admin/AdminProductManager";
-import { CommerceProvider } from "@/components/CommerceProvider";
-import { Footer } from "@/components/Footer";
-import { Header } from "@/components/Header";
+
+export const metadata: Metadata = {
+  title: "Quản lý sản phẩm | SHOPO"
+};
 
 export default function AdminProductsPage() {
   return (
-    <CommerceProvider>
-      <Header />
-      <main>
-        <AdminProductManager />
-      </main>
-      <Footer />
-    </CommerceProvider>
+    <Suspense fallback={<div className="min-h-screen animate-pulse bg-porcelain" />}>
+      <AdminProductManager />
+    </Suspense>
   );
 }

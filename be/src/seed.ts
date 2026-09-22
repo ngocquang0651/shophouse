@@ -7,6 +7,7 @@ import { ProductStatus } from "./common/enums/product-status.enum";
 import { seedProducts as storefrontProducts } from "./catalog-seed";
 import { UserRole } from "./common/enums/user-role.enum";
 import { ProductSchema } from "./products/schemas/product.schema";
+import { buildSearchText } from "./products/product-query";
 import { UserSchema } from "./users/schemas/user.schema";
 
 config();
@@ -14,10 +15,29 @@ config();
 const UserModel = model("User", UserSchema);
 const ProductModel = model("Product", ProductSchema);
 
+const DEV_ADMIN_PASSWORD = "1";
+
+/**
+ * The admin password is only seeded here, never re-applied on boot, so changing
+ * it in the database sticks. Production must supply a real one.
+ */
+function resolveAdminPassword() {
+  const password = process.env.SEED_ADMIN_PASSWORD?.trim();
+
+  if (process.env.NODE_ENV === "production") {
+    if (!password || password.length < 12) {
+      throw new Error("SEED_ADMIN_PASSWORD is required in production and must be at least 12 characters.");
+    }
+    return password;
+  }
+
+  return password || DEV_ADMIN_PASSWORD;
+}
+
 const demoAdmin = {
   name: "Store Admin",
   email: "admin",
-  password: "1",
+  password: resolveAdminPassword(),
   role: UserRole.Admin
 };
 
@@ -92,6 +112,7 @@ async function seed() {
         ...product,
         images: [product.image],
         description: `${product.brand} ${product.name} curated for the LuxeStore luxury edit.`,
+        searchText: buildSearchText(product),
         stock: 12,
         status: ProductStatus.Active
       });

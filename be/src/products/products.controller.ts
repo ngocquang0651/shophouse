@@ -14,16 +14,16 @@ import {
   UseInterceptors
 } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
+import { HttpCacheInterceptor, PublicCache } from "../common/http-cache.interceptor";
 import { diskStorage } from "multer";
 import { extname } from "node:path";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
-import { ProductBadge } from "../common/enums/product-badge.enum";
 import { UserRole } from "../common/enums/user-role.enum";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
-import { clampLowStockThreshold, parseAdminListQuery } from "./product-query";
+import { clampLowStockThreshold, parseAdminListQuery, parsePublicListQuery } from "./product-query";
 import { ProductsService } from "./products.service";
 
 type UploadRequest = {
@@ -53,16 +53,10 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get()
-  findAll(
-    @Query("search") search?: string,
-    @Query("q") q?: string,
-    @Query("category") category?: string,
-    @Query("badge") badge?: ProductBadge,
-    @Query("audience") audience?: string,
-    @Query("type") type?: string,
-    @Query("tag") tag?: string
-  ) {
-    return this.productsService.findAll({ search: q ?? search, category, badge, audience, type, tag });
+  @UseInterceptors(HttpCacheInterceptor)
+  @PublicCache({ maxAgeSeconds: 60, staleWhileRevalidateSeconds: 300 })
+  findAll(@Query() query: Record<string, string | string[] | undefined>) {
+    return this.productsService.findAll(parsePublicListQuery(query));
   }
 
   @Get("admin")
@@ -81,6 +75,8 @@ export class ProductsController {
   }
 
   @Get("slug/:slug")
+  @UseInterceptors(HttpCacheInterceptor)
+  @PublicCache({ maxAgeSeconds: 60, staleWhileRevalidateSeconds: 300 })
   findOneBySlug(@Param("slug") slug: string) {
     return this.productsService.findOneBySlug(slug);
   }

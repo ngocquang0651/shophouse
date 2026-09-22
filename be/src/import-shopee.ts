@@ -3,6 +3,7 @@ import { config } from "dotenv";
 import { connect, disconnect, model } from "mongoose";
 import { ProductSchema } from "./products/schemas/product.schema";
 import { loadShopeeCatalog } from "./imports/shopee-import";
+import { buildSearchText } from "./products/product-query";
 
 config();
 
@@ -23,7 +24,7 @@ async function run() {
     const existing = await ProductModel.findOne({ "source.provider": "shopee", "source.productId": product.source.productId }).lean();
     await ProductModel.updateOne(
       { "source.provider": "shopee", "source.productId": product.source.productId },
-      { $set: { ...product, source: { ...product.source, importedAt: existing?.source?.importedAt ?? now, lastSeenAt: now } } },
+      { $set: { ...product, searchText: buildSearchText(product), source: { ...product.source, importedAt: existing?.source?.importedAt ?? now, lastSeenAt: now } } },
       { upsert: true }
     );
     if (existing) updated += 1; else created += 1;

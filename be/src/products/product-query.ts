@@ -7,6 +7,14 @@ export const DEFAULT_LOW_STOCK_THRESHOLD = 3;
 export const MAX_LOW_STOCK_THRESHOLD = 100;
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
+export const MAX_SEARCH_LENGTH = 100;
+export const DEFAULT_PUBLIC_PAGE_SIZE = 24;
+/**
+ * Hard ceiling for the un-paginated storefront response. The catalog pages still
+ * filter client-side, so the whole list is returned when no page is asked for,
+ * but never more than this many documents in one request.
+ */
+export const MAX_PUBLIC_RESULTS = 500;
 
 export const adminSortKeys = ["newest", "name", "price-asc", "price-desc", "stock-asc", "stock-desc"] as const;
 export type AdminSortKey = (typeof adminSortKeys)[number];
@@ -88,7 +96,7 @@ export function parseAdminListQuery(raw: RawQuery): AdminListQuery {
   const page = toInteger(raw.page);
 
   return {
-    q: (firstValue(raw.q) ?? "").trim().slice(0, 100),
+    q: normalizeSearchTerm(firstValue(raw.q)),
     category: firstValue(raw.category) ?? "",
     badge: firstValue(raw.badge) ?? "",
     status: status === ProductStatus.Active || status === ProductStatus.Inactive ? status : "",
@@ -100,11 +108,52 @@ export function parseAdminListQuery(raw: RawQuery): AdminListQuery {
   };
 }
 
+/**
+ * Builds the regex used to match a shopper's search text. Every character is
+ * escaped, so a query such as "(a+)+$" is matched literally instead of being
+ * compiled into a catastrophically backtracking pattern.
+ */
+export function buildSearchRegex(query: string) {
+  return new RegExp(buildDiacriticInsensitivePattern(query), "i");
+}
+
+/** Normalizes free-text search coming from a public, unauthenticated request. */
+export function normalizeSearchTerm(value: string | undefined) {
+  return (value ?? "").trim().slice(0, MAX_SEARCH_LENGTH);
+}
+
+/**
+ * The indexed representation of a product's searchable text: lowercased and
+ * stripped of diacritics, so "Giày Đen" is stored as "giay den".
+ */
+export function buildSearchText(parts: { name?: string; brand?: string; category?: string; tags?: string[] }) {
+  return stripDiacritics(
+    [parts.name, parts.brand, parts.category, ...(parts.tags ?? [])].filter(Boolean).join(" ")
+  ).replace(/\s+/g, " ");
+}
+
+/** Indexed, word-level search. Fast, but it will not match partial words. */
+export function buildTextSearchFilter(search: string): FilterQuery<Product> {
+  return { $text: { $search: stripDiacritics(search) } };
+}
+
+/**
+ * Substring fallback for what the text index cannot match ("giay" inside
+ * "giayda"). It also still looks at name and brand so products imported before
+ * `searchText` existed stay findable.
+ */
+export function buildFallbackSearchFilter(search: string): FilterQuery<Product> {
+  const normalized = new RegExp(escapeRegex(stripDiacritics(search)), "i");
+  const accented = buildSearchRegex(search);
+
+  return { $or: [{ searchText: normalized }, { name: accented }, { brand: accented }] };
+}
+
 export function buildAdminFilter(query: AdminListQuery): FilterQuery<Product> {
   const filter: FilterQuery<Product> = {};
 
   if (query.q) {
-    const pattern = new RegExp(buildDiacriticInsensitivePattern(query.q), "i");
+    const pattern = buildSearchRegex(query.q);
     const conditions: FilterQuery<Product>[] = [{ name: pattern }, { brand: pattern }, { "variants.sku": pattern }];
     if (Types.ObjectId.isValid(query.q) && query.q.length === 24) {
       conditions.push({ _id: new Types.ObjectId(query.q) });
@@ -137,4 +186,47 @@ export function buildAdminSort(sort: AdminSortKey): Record<string, 1 | -1> {
     default:
       return { createdAt: -1, _id: -1 };
   }
+}
+
+
+export type PublicListQuery = {
+  search: string;
+  category: string;
+  badge: string;
+  audience: string;
+  type: string;
+  tag: string;
+  /** Undefined means "no pagination requested": return the (capped) full list. */
+  page?: number;
+  pageSize?: number;
+};
+
+/**
+ * Pagination is opt-in so existing storefront calls keep receiving a plain array.
+ * Passing either `page` or `pageSize` switches the response to a paged envelope.
+ */
+export function parsePublicListQuery(raw: RawQuery): PublicListQuery {
+  const page = toInteger(raw.page);
+  const pageSize = toInteger(raw.pageSize);
+  const paginated = page !== undefined || pageSize !== undefined;
+
+  return {
+    search: normalizeSearchTerm(firstValue(raw.q) ?? firstValue(raw.search)),
+    category: firstValue(raw.category) ?? "",
+    badge: firstValue(raw.badge) ?? "",
+    audience: firstValue(raw.audience) ?? "",
+    type: firstValue(raw.type) ?? "",
+    tag: firstValue(raw.tag) ?? "",
+    ...(paginated
+      ? {
+          page: page !== undefined && page > 1 ? page : 1,
+          pageSize:
+            pageSize !== undefined && pageSize > 0 ? Math.min(pageSize, MAX_PAGE_SIZE) : DEFAULT_PUBLIC_PAGE_SIZE
+        }
+      : {})
+  };
+}
+
+export function isPaginated(query: PublicListQuery): query is PublicListQuery & { page: number; pageSize: number } {
+  return query.page !== undefined && query.pageSize !== undefined;
 }

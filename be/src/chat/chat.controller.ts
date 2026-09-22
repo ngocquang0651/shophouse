@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Res } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { randomUUID } from "crypto";
 import type { Response } from "express";
 import { ChatService } from "./chat.service";
@@ -8,10 +9,12 @@ import { CreateThreadDto } from "./dto/create-thread.dto";
 import { RenameThreadDto } from "./dto/rename-thread.dto";
 import { StreamRunDto } from "./dto/stream-run.dto";
 import { UpdateThreadDto } from "./dto/update-thread.dto";
+import { CHAT_THROTTLE_LIMIT, CHAT_THROTTLE_TTL_MS, THROTTLE_SHORT } from "../common/throttler.config";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 @Controller("chat")
+@Throttle({ [THROTTLE_SHORT]: { limit: CHAT_THROTTLE_LIMIT, ttl: CHAT_THROTTLE_TTL_MS } })
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 

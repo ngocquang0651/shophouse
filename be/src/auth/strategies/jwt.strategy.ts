@@ -24,7 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           request.headers.cookie?.match(/(?:^|; )luxestore_token=([^;]+)/)?.[1] ?? null
       ]),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>("JWT_SECRET") ?? "luxestore_dev_secret"
+      secretOrKey: configService.getOrThrow<string>("JWT_SECRET")
     });
   }
 

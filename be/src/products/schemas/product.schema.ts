@@ -57,6 +57,8 @@ export class Product {
   @Prop({ trim: true }) sizeGuideKey?: string;
   @Prop({ min: 0, default: 0 }) stock!: number;
   @Prop({ enum: ProductStatus, default: ProductStatus.Active }) status!: ProductStatus;
+  /** Lowercased, diacritic-free "name brand category" used for indexed search. */
+  @Prop({ default: "", index: true }) searchText!: string;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);
@@ -66,3 +68,15 @@ ProductSchema.index(
   { unique: true, partialFilterExpression: { "source.provider": { $exists: true } } }
 );
 ProductSchema.index({ audience: 1, productType: 1, category: 1 });
+// The storefront default: active products, newest first.
+ProductSchema.index({ status: 1, createdAt: -1 });
+ProductSchema.index({ status: 1, tags: 1 });
+ProductSchema.index({ status: 1, audience: 1, productType: 1 });
+// Admin listing facets and sorts.
+ProductSchema.index({ category: 1 });
+ProductSchema.index({ brand: 1 });
+ProductSchema.index({ price: 1 });
+ProductSchema.index({ stock: 1 });
+ProductSchema.index({ "variants.sku": 1 });
+// Word-level search over the normalized text, used before falling back to regex.
+ProductSchema.index({ searchText: "text" }, { default_language: "none", name: "product_search_text" });

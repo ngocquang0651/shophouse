@@ -1,41 +1,98 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { FilterQuery, Model, Types } from "mongoose";
-import { ProductBadge } from "../common/enums/product-badge.enum";
 import { ProductStatus } from "../common/enums/product-status.enum";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
-import { AdminListQuery, DEFAULT_LOW_STOCK_THRESHOLD, buildAdminFilter, buildAdminSort } from "./product-query";
+import {
+  AdminListQuery,
+  DEFAULT_LOW_STOCK_THRESHOLD,
+  MAX_PUBLIC_RESULTS,
+  PublicListQuery,
+  buildAdminFilter,
+  buildAdminSort,
+  buildFallbackSearchFilter,
+  buildSearchText,
+  buildTextSearchFilter,
+  isPaginated
+} from "./product-query";
+import { PRODUCT_LIST_PROJECTION, toAdminProductResponse, toProductDetail, toProductListItem } from "./product-response";
+import { buildUniqueSlug, slugifyProductName } from "./product-slug";
+import { TtlCache } from "../common/ttl-cache";
 import { Product } from "./schemas/product.schema";
 
-type ProductFilters = {
-  search?: string;
-  category?: string;
-  badge?: ProductBadge;
-  audience?: string;
-  type?: string;
-  tag?: string;
-  status?: ProductStatus;
-};
+export const FACET_CACHE_TTL_MS = 60_000;
 
 @Injectable()
 export class ProductsService {
+  /** Distinct category/brand lists cost a full scan each, and barely ever change. */
+  private readonly facetCache = new TtlCache<string[]>(FACET_CACHE_TTL_MS);
+
   constructor(@InjectModel(Product.name) private readonly productModel: Model<Product>) {}
 
-  async findAll(filters: ProductFilters = {}, options: { includeInactive?: boolean } = {}) {
-    const query: FilterQuery<Product> = options.includeInactive ? {} : { status: ProductStatus.Active };
+  /**
+   * Storefront listing. Returns a plain array unless the caller asks for a page,
+   * so existing catalog pages keep working, and never more than
+   * MAX_PUBLIC_RESULTS documents in one response.
+   */
+  async findAll(query: PublicListQuery) {
+    const baseFilter = this.buildPublicFilter(query);
 
-    if (filters.search?.trim()) {
-      const search = filters.search.trim();
-      query.$or = [{ name: { $regex: search, $options: "i" } }, { brand: { $regex: search, $options: "i" } }];
+    if (!isPaginated(query)) {
+      const documents = await this.runPublicSearch(baseFilter, query.search, {
+        limit: MAX_PUBLIC_RESULTS
+      });
+      return documents.map(toProductListItem);
     }
-    if (filters.category) query.category = filters.category;
-    if (filters.badge) query.badge = filters.badge;
-    if (filters.audience) query.audience = filters.audience;
-    if (filters.type) query.productType = filters.type;
-    if (filters.tag) query.tags = filters.tag;
 
-    return this.productModel.find(query).sort({ createdAt: -1 }).lean().exec();
+    const filter = query.search ? await this.resolveSearchFilter(baseFilter, query.search) : baseFilter;
+    const total = await this.productModel.countDocuments(filter).exec();
+    const pageCount = Math.max(1, Math.ceil(total / query.pageSize));
+    const page = Math.min(query.page, pageCount);
+
+    const documents = await this.productModel
+      .find(filter, PRODUCT_LIST_PROJECTION)
+      .sort({ createdAt: -1, _id: -1 })
+      .skip((page - 1) * query.pageSize)
+      .limit(query.pageSize)
+      .lean()
+      .exec();
+
+    return { items: documents.map(toProductListItem), total, page, pageSize: query.pageSize, pageCount };
+  }
+
+  private buildPublicFilter(query: PublicListQuery): FilterQuery<Product> {
+    const filter: FilterQuery<Product> = { status: ProductStatus.Active };
+
+    if (query.category) filter.category = query.category;
+    if (query.badge) filter.badge = query.badge;
+    if (query.audience) filter.audience = query.audience;
+    if (query.type) filter.productType = query.type;
+    if (query.tag) filter.tags = query.tag;
+
+    return filter;
+  }
+
+  /**
+   * Tries the indexed text search first and only falls back to a substring scan
+   * when it finds nothing, so the common query never scans the collection.
+   */
+  private async resolveSearchFilter(baseFilter: FilterQuery<Product>, search: string) {
+    const textFilter = { ...baseFilter, ...buildTextSearchFilter(search) };
+    const hasTextMatch = await this.productModel.exists(textFilter).exec();
+
+    return hasTextMatch ? textFilter : { ...baseFilter, ...buildFallbackSearchFilter(search) };
+  }
+
+  private async runPublicSearch(baseFilter: FilterQuery<Product>, search: string, options: { limit: number }) {
+    const filter = search ? await this.resolveSearchFilter(baseFilter, search) : baseFilter;
+
+    return this.productModel
+      .find(filter, PRODUCT_LIST_PROJECTION)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(options.limit)
+      .lean()
+      .exec();
   }
 
   async getAdminSummary(lowStockThreshold: number = DEFAULT_LOW_STOCK_THRESHOLD) {
@@ -75,24 +132,33 @@ export class ProductsService {
         .lean()
         .exec(),
       this.getAdminSummary(query.lowStockThreshold),
-      this.productModel.distinct("category").exec(),
-      this.productModel.distinct("brand").exec()
+      this.facetCache.wrap("category", () => this.productModel.distinct("category").exec()),
+      this.facetCache.wrap("brand", () => this.productModel.distinct("brand").exec())
     ]);
 
-    return { items, total, page, pageSize: query.pageSize, pageCount, summary, categories, brands };
+    return {
+      items: items.map(toAdminProductResponse),
+      total,
+      page,
+      pageSize: query.pageSize,
+      pageCount,
+      summary,
+      categories,
+      brands
+    };
   }
 
   async findOne(id: string) {
     if (!Types.ObjectId.isValid(id)) throw new NotFoundException("Không tìm thấy sản phẩm.");
     const product = await this.productModel.findById(id).lean().exec();
     if (!product) throw new NotFoundException("Không tìm thấy sản phẩm.");
-    return product;
+    return toProductDetail(product);
   }
 
   async findOneBySlug(slug: string) {
     const product = await this.productModel.findOne({ slug, status: ProductStatus.Active }).lean().exec();
     if (!product) throw new NotFoundException("Không tìm thấy sản phẩm.");
-    return product;
+    return toProductDetail(product);
   }
 
   async create(dto: CreateProductDto) {
@@ -100,8 +166,14 @@ export class ProductsService {
 
     try {
       const normalized = this.normalizeProduct(dto);
-      const slug = await this.createUniqueSlug(normalized.slug ?? this.slugify(dto.name));
-      return await this.productModel.create({ ...normalized, slug });
+      const slug = await this.createUniqueSlug(normalized.slug ?? slugifyProductName(dto.name));
+      const created = await this.productModel.create({
+        ...normalized,
+        slug,
+        searchText: buildSearchText(dto)
+      });
+      this.facetCache.clear();
+      return toAdminProductResponse(created.toObject());
     } catch (error) {
       this.handlePersistenceError(error);
     }
@@ -120,15 +192,21 @@ export class ProductsService {
 
     // Renaming a product keeps its URL stable, so links and search results do not break.
     const { originalPrice, ...rest } = this.normalizeProduct(dto);
+    const searchText = await this.resolveSearchTextUpdate(id, dto);
     const update = {
-      $set: { ...rest, ...(typeof originalPrice === "number" ? { originalPrice } : {}) },
+      $set: {
+        ...rest,
+        ...(typeof originalPrice === "number" ? { originalPrice } : {}),
+        ...(searchText === undefined ? {} : { searchText })
+      },
       ...(originalPrice === null ? { $unset: { originalPrice: 1 } } : {})
     };
 
     try {
       const product = await this.productModel.findByIdAndUpdate(id, update, { new: true, runValidators: true }).lean().exec();
       if (!product) throw new NotFoundException("Không tìm thấy sản phẩm.");
-      return product;
+      this.facetCache.clear();
+      return toAdminProductResponse(product);
     } catch (error) {
       this.handlePersistenceError(error);
     }
@@ -138,7 +216,31 @@ export class ProductsService {
     if (!Types.ObjectId.isValid(id)) throw new NotFoundException("Không tìm thấy sản phẩm.");
     const product = await this.productModel.findByIdAndDelete(id).lean().exec();
     if (!product) throw new NotFoundException("Không tìm thấy sản phẩm.");
+    this.facetCache.clear();
     return { ok: true };
+  }
+
+  /**
+   * `searchText` is derived from four fields, so a patch that touches any of them
+   * needs the other three from the stored document to rebuild it.
+   */
+  private async resolveSearchTextUpdate(id: string, dto: UpdateProductDto) {
+    const touchesSearchText =
+      dto.name !== undefined || dto.brand !== undefined || dto.category !== undefined || dto.tags !== undefined;
+    if (!touchesSearchText) return undefined;
+
+    const current = await this.productModel
+      .findById(id, { name: 1, brand: 1, category: 1, tags: 1 })
+      .lean()
+      .exec();
+    if (!current) return undefined;
+
+    return buildSearchText({
+      name: dto.name ?? current.name,
+      brand: dto.brand ?? current.brand,
+      category: dto.category ?? current.category,
+      tags: dto.tags ?? current.tags
+    });
   }
 
   private normalizeProduct<T extends CreateProductDto | UpdateProductDto>(dto: T) {
@@ -167,19 +269,8 @@ export class ProductsService {
     }
   }
 
-  private async createUniqueSlug(base: string) {
-    const root = base || "san-pham";
-    let candidate = root;
-
-    for (let suffix = 2; await this.productModel.exists({ slug: candidate }).exec(); suffix += 1) {
-      candidate = `${root}-${suffix}`;
-    }
-
-    return candidate;
-  }
-
-  private slugify(value: string) {
-    return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  private createUniqueSlug(base: string) {
+    return buildUniqueSlug(base, async (candidate) => Boolean(await this.productModel.exists({ slug: candidate }).exec()));
   }
 
   private handlePersistenceError(error: unknown): never {

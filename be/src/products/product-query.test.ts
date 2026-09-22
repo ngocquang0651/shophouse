@@ -4,13 +4,21 @@ import { ProductStatus } from "../common/enums/product-status.enum";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   DEFAULT_PAGE_SIZE,
+  DEFAULT_PUBLIC_PAGE_SIZE,
   MAX_PAGE_SIZE,
+  MAX_SEARCH_LENGTH,
   buildAdminFilter,
   buildAdminSort,
   buildDiacriticInsensitivePattern,
+  buildFallbackSearchFilter,
+  buildSearchText,
+  buildTextSearchFilter,
   clampLowStockThreshold,
   escapeRegex,
+  isPaginated,
+  normalizeSearchTerm,
   parseAdminListQuery,
+  parsePublicListQuery,
   stripDiacritics
 } from "./product-query";
 
@@ -165,5 +173,131 @@ describe("buildAdminSort", () => {
     assert.deepEqual(buildAdminSort("stock-asc"), { stock: 1, _id: 1 });
     assert.deepEqual(buildAdminSort("stock-desc"), { stock: -1, _id: 1 });
     assert.deepEqual(buildAdminSort("newest"), { createdAt: -1, _id: -1 });
+  });
+});
+
+describe("normalizeSearchTerm", () => {
+  it("returns an empty string for missing, empty and whitespace-only input", () => {
+    assert.equal(normalizeSearchTerm(undefined), "");
+    assert.equal(normalizeSearchTerm(""), "");
+    assert.equal(normalizeSearchTerm("   "), "");
+  });
+
+  it("trims and caps the term at the maximum length", () => {
+    assert.equal(normalizeSearchTerm("  giay  "), "giay");
+    assert.equal(normalizeSearchTerm("a".repeat(MAX_SEARCH_LENGTH + 50)).length, MAX_SEARCH_LENGTH);
+  });
+});
+
+describe("buildSearchText", () => {
+  it("joins the searchable fields, lowercased and without diacritics", () => {
+    assert.equal(
+      buildSearchText({ name: "Giày Đen", brand: "SHOPO", category: "Giày tây", tags: ["Sale"] }),
+      "giay den shopo giay tay sale"
+    );
+  });
+
+  it("skips missing parts and collapses the gaps they leave", () => {
+    assert.equal(buildSearchText({ name: "Giày" }), "giay");
+    assert.equal(buildSearchText({ name: "Giày", category: "Tây" }), "giay tay");
+  });
+
+  it("returns an empty string for an empty product", () => {
+    assert.equal(buildSearchText({}), "");
+    assert.equal(buildSearchText({ tags: [] }), "");
+  });
+
+  it("collapses repeated whitespace", () => {
+    assert.equal(buildSearchText({ name: "Giày   da    nam" }), "giay da nam");
+  });
+});
+
+describe("buildTextSearchFilter", () => {
+  it("searches the text index with the normalized term", () => {
+    assert.deepEqual(buildTextSearchFilter("Giày Đen"), { $text: { $search: "giay den" } });
+  });
+});
+
+describe("buildFallbackSearchFilter", () => {
+  it("matches the normalized text, plus name and brand for un-backfilled products", () => {
+    const filter = buildFallbackSearchFilter("giay");
+    const conditions = filter.$or as Array<Record<string, RegExp>>;
+
+    assert.equal(conditions.length, 3);
+    assert.ok(conditions[0].searchText.test("giay da nam"));
+    assert.ok(conditions[1].name.test("Giày da nam"));
+    assert.ok(conditions[2].brand.test("GIAY VIET"));
+  });
+
+  it("matches a partial word, which the text index cannot", () => {
+    const pattern = (buildFallbackSearchFilter("iayd").$or as Array<{ searchText: RegExp }>)[0].searchText;
+
+    assert.ok(pattern.test("giayda nam"));
+  });
+
+  it("escapes metacharacters in every branch", () => {
+    const conditions = buildFallbackSearchFilter("(a+)+$").$or as Array<Record<string, RegExp>>;
+
+    assert.equal(conditions[0].searchText.test("aaaaaaaaaaaaaaaa"), false);
+    assert.ok(conditions[0].searchText.test("x (a+)+$ y"));
+  });
+});
+
+describe("parsePublicListQuery", () => {
+  it("leaves pagination off when neither page nor pageSize is given", () => {
+    const query = parsePublicListQuery({});
+
+    assert.equal(query.page, undefined);
+    assert.equal(query.pageSize, undefined);
+    assert.equal(isPaginated(query), false);
+  });
+
+  it("turns pagination on when only page is given", () => {
+    const query = parsePublicListQuery({ page: "3" });
+
+    assert.equal(query.page, 3);
+    assert.equal(query.pageSize, DEFAULT_PUBLIC_PAGE_SIZE);
+    assert.equal(isPaginated(query), true);
+  });
+
+  it("turns pagination on when only pageSize is given", () => {
+    const query = parsePublicListQuery({ pageSize: "10" });
+
+    assert.equal(query.page, 1);
+    assert.equal(query.pageSize, 10);
+  });
+
+  it("caps pageSize and floors page at 1", () => {
+    assert.equal(parsePublicListQuery({ pageSize: "5000" }).pageSize, MAX_PAGE_SIZE);
+    assert.equal(parsePublicListQuery({ page: "0" }).page, 1);
+    assert.equal(parsePublicListQuery({ page: "-4" }).page, 1);
+  });
+
+  it("falls back to defaults for malformed pagination values", () => {
+    assert.equal(parsePublicListQuery({ page: "abc" }).page, undefined);
+    assert.equal(parsePublicListQuery({ pageSize: "1.5" }).pageSize, undefined);
+    assert.equal(parsePublicListQuery({ pageSize: "0" }).pageSize, DEFAULT_PUBLIC_PAGE_SIZE);
+  });
+
+  it("reads the search term from q or search and trims it", () => {
+    assert.equal(parsePublicListQuery({ q: "  giay  " }).search, "giay");
+    assert.equal(parsePublicListQuery({ search: " dep " }).search, "dep");
+  });
+
+  it("prefers q when both are present", () => {
+    assert.equal(parsePublicListQuery({ q: "giay", search: "dep" }).search, "giay");
+  });
+
+  it("takes the first value when a parameter repeats", () => {
+    assert.equal(parsePublicListQuery({ category: ["A", "B"] }).category, "A");
+  });
+
+  it("defaults every filter to an empty string", () => {
+    const query = parsePublicListQuery({});
+
+    assert.deepEqual(
+      { ...query },
+      { search: "", category: "", badge: "", audience: "", type: "", tag: "" }
+    );
   });
 });

@@ -2,6 +2,7 @@ import { BadRequestException, ValidationPipe } from "@nestjs/common";
 import { Logger } from "nestjs-pino";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import * as express from "express";
 import * as cookieParser from "cookie-parser";
 import helmet from "helmet";
@@ -13,10 +14,16 @@ import { buildCorsOriginCheck } from "./common/cors";
 import { setupSwagger } from "./common/swagger";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
   const configService = app.get(ConfigService);
   const isProduction = configService.getOrThrow<string>("NODE_ENV") === "production";
+  // Behind a hosting proxy (Render, Railway, ...) this makes request.ip the real
+  // client (so the login rate limit is per user, not shared) and request.protocol https.
+  const trustProxy = configService.getOrThrow<number>("TRUST_PROXY");
+  if (trustProxy > 0) {
+    app.set("trust proxy", trustProxy);
+  }
   const allowedOrigins = [
     configService.getOrThrow<string>("FRONTEND_URL"),
     ...splitOrigins(configService.get<string>("FRONTEND_URLS"))

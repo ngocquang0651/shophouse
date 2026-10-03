@@ -13,6 +13,7 @@ import {
   UseGuards,
   UseInterceptors
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { HttpCacheInterceptor, PublicCache } from "../common/http-cache.interceptor";
 import { diskStorage } from "multer";
@@ -25,6 +26,7 @@ import { CreateProductDto } from "./dto/create-product.dto";
 import { UpdateProductDto } from "./dto/update-product.dto";
 import { clampLowStockThreshold, parseAdminListQuery, parsePublicListQuery } from "./product-query";
 import { ProductsService } from "./products.service";
+import { resolveUploadBaseUrl } from "./upload-url";
 
 type UploadRequest = {
   protocol: string;
@@ -50,7 +52,10 @@ const productImageStorage = diskStorage({
 
 @Controller("products")
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly configService: ConfigService
+  ) {}
 
   @Get()
   @UseInterceptors(HttpCacheInterceptor)
@@ -110,8 +115,11 @@ export class ProductsController {
       throw new BadRequestException("Vui lòng chọn ít nhất một ảnh để tải lên.");
     }
 
-    const host = request.get("host");
-    const baseUrl = `${request.protocol}://${host}`;
+    const baseUrl = resolveUploadBaseUrl(
+      this.configService.get<string>("PUBLIC_API_URL") ?? "",
+      request.protocol,
+      request.get("host")
+    );
 
     return {
       urls: files.map((file) => `${baseUrl}/uploads/products/${file.filename}`)

@@ -8,10 +8,6 @@ export const THROTTLE_MEDIUM = "medium";
 export const LOGIN_THROTTLE_LIMIT = 5;
 export const LOGIN_THROTTLE_TTL_MS = 60_000;
 
-/** Mock chat is unauthenticated, so it gets its own tighter budget. */
-export const CHAT_THROTTLE_LIMIT = 30;
-export const CHAT_THROTTLE_TTL_MS = 60_000;
-
 export const throttlerOptions: ThrottlerModuleOptions = {
   throttlers: [
     { name: THROTTLE_SHORT, ttl: 1_000, limit: 20 },

@@ -97,6 +97,44 @@ describe("validateEnv", () => {
     );
   });
 
+  it("defaults the deployment settings for local development", () => {
+    const config = validateEnv(env());
+
+    assert.equal(config.COOKIE_SAME_SITE, "lax");
+    assert.equal(config.TRUST_PROXY, 0);
+    assert.equal(config.PUBLIC_API_URL, "");
+  });
+
+  it("accepts cross-site deployment settings", () => {
+    const config = validateEnv(
+      env({ COOKIE_SAME_SITE: "None", TRUST_PROXY: "1", PUBLIC_API_URL: "https://api.onrender.com/" })
+    );
+
+    assert.equal(config.COOKIE_SAME_SITE, "none");
+    assert.equal(config.TRUST_PROXY, 1);
+    assert.equal(config.PUBLIC_API_URL, "https://api.onrender.com");
+  });
+
+  it("rejects an unknown COOKIE_SAME_SITE", () => {
+    assert.throws(() => validateEnv(env({ COOKIE_SAME_SITE: "always" })), /COOKIE_SAME_SITE must be one of/);
+  });
+
+  it("rejects out-of-range and non-integer TRUST_PROXY values", () => {
+    assert.throws(() => validateEnv(env({ TRUST_PROXY: "-1" })), /TRUST_PROXY must be an integer/);
+    assert.throws(() => validateEnv(env({ TRUST_PROXY: "11" })), /TRUST_PROXY must be an integer/);
+    assert.throws(() => validateEnv(env({ TRUST_PROXY: "1.5" })), /TRUST_PROXY must be an integer/);
+    assert.throws(() => validateEnv(env({ TRUST_PROXY: "true" })), /TRUST_PROXY must be an integer/);
+  });
+
+  it("accepts the TRUST_PROXY bounds", () => {
+    assert.equal(validateEnv(env({ TRUST_PROXY: "0" })).TRUST_PROXY, 0);
+    assert.equal(validateEnv(env({ TRUST_PROXY: "10" })).TRUST_PROXY, 10);
+  });
+
+  it("rejects a malformed PUBLIC_API_URL", () => {
+    assert.throws(() => validateEnv(env({ PUBLIC_API_URL: "api.onrender.com" })), /PUBLIC_API_URL must be an http/);
+  });
+
   it("reports every problem at once", () => {
     assert.throws(
       () => validateEnv({ MONGODB_URI: "", JWT_SECRET: "", PORT: "abc" }),

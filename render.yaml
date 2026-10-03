@@ -1,0 +1,33 @@
+# Render Blueprint for the NestJS API (be/). Secrets are marked sync: false and
+# must be filled in on the Render dashboard.
+services:
+  - type: web
+    name: shophouse-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: be
+    # --include=dev: the Nest CLI and TypeScript are devDependencies, and npm
+    # skips them when NODE_ENV=production.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: node dist/main
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: COOKIE_SAME_SITE
+        value: none
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false

@@ -11,8 +11,11 @@ export const MIN_PRODUCTION_JWT_SECRET_LENGTH = 32;
 export const DEFAULT_PORT = 4000;
 export const DEFAULT_JWT_EXPIRES_IN = "7d";
 export const DEFAULT_FRONTEND_URL = "http://localhost:3000";
+export const DEFAULT_COOKIE_SAME_SITE = "lax";
+export const MAX_TRUST_PROXY_HOPS = 10;
 
 export type NodeEnv = "development" | "production" | "test";
+export type CookieSameSite = "lax" | "strict" | "none";
 
 export type EnvConfig = {
   NODE_ENV: NodeEnv;
@@ -22,9 +25,16 @@ export type EnvConfig = {
   JWT_EXPIRES_IN: string;
   FRONTEND_URL: string;
   FRONTEND_URLS: string;
+  /** "none" is needed when the frontend and API live on different sites (e.g. vercel.app + onrender.com). */
+  COOKIE_SAME_SITE: CookieSameSite;
+  /** Number of reverse proxies in front of the app (Render, Railway, ... = 1). */
+  TRUST_PROXY: number;
+  /** Public base URL of this API, used to build uploaded image URLs. Empty = derive from the request. */
+  PUBLIC_API_URL: string;
 };
 
 const nodeEnvs: readonly NodeEnv[] = ["development", "production", "test"];
+const cookieSameSites: readonly CookieSameSite[] = ["lax", "strict", "none"];
 
 function readString(raw: Record<string, unknown>, key: string) {
   const value = raw[key];
@@ -80,6 +90,22 @@ export function validateEnv(raw: Record<string, unknown>): EnvConfig {
     }
   }
 
+  const cookieSameSiteValue = (readString(raw, "COOKIE_SAME_SITE") || DEFAULT_COOKIE_SAME_SITE).toLowerCase();
+  if (!(cookieSameSites as readonly string[]).includes(cookieSameSiteValue)) {
+    errors.push(`COOKIE_SAME_SITE must be one of ${cookieSameSites.join(", ")} (received "${cookieSameSiteValue}").`);
+  }
+
+  const trustProxyValue = readString(raw, "TRUST_PROXY");
+  const trustProxy = trustProxyValue === "" ? 0 : Number(trustProxyValue);
+  if (!Number.isInteger(trustProxy) || trustProxy < 0 || trustProxy > MAX_TRUST_PROXY_HOPS) {
+    errors.push(`TRUST_PROXY must be an integer between 0 and ${MAX_TRUST_PROXY_HOPS} (received "${trustProxyValue}").`);
+  }
+
+  const publicApiUrl = readString(raw, "PUBLIC_API_URL").replace(/\/+$/, "");
+  if (publicApiUrl !== "" && !isHttpUrl(publicApiUrl)) {
+    errors.push(`PUBLIC_API_URL must be an http(s) URL (received "${publicApiUrl}").`);
+  }
+
   if (errors.length) {
     throw new Error(`Invalid environment configuration:\n- ${errors.join("\n- ")}`);
   }
@@ -91,7 +117,10 @@ export function validateEnv(raw: Record<string, unknown>): EnvConfig {
     JWT_SECRET: jwtSecret,
     JWT_EXPIRES_IN: jwtExpiresIn,
     FRONTEND_URL: frontendUrl,
-    FRONTEND_URLS: frontendUrls
+    FRONTEND_URLS: frontendUrls,
+    COOKIE_SAME_SITE: cookieSameSiteValue as CookieSameSite,
+    TRUST_PROXY: trustProxy,
+    PUBLIC_API_URL: publicApiUrl
   };
 }
 

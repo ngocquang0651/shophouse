@@ -7,7 +7,6 @@ import { LoggerModule } from "nestjs-pino";
 import { AuthModule } from "./auth/auth.module";
 import { ProductsModule } from "./products/products.module";
 import { UsersModule } from "./users/users.module";
-import { ChatModule } from "./chat/chat.module";
 import { HealthModule } from "./health/health.module";
 import { validateEnv } from "./common/env.validation";
 import { throttlerOptions } from "./common/throttler.config";
@@ -31,7 +30,6 @@ import { buildLoggerOptions } from "./common/logger.config";
     AuthModule,
     UsersModule,
     ProductsModule,
-    ChatModule,
     HealthModule
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }]
